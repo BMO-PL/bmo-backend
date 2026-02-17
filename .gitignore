@@ -1,0 +1,18 @@
+# Visual Studio Code directory
+.vscode/
+
+# Build directory
+build/
+out/
+
+# vcpkg directory
+vcpkg/
+vcpkg_installed/
+
+# Cmake artifacts
+**/CMakeFiles/
+/CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+compile_commands.json
