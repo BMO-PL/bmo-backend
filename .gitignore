@@ -1,11 +1,13 @@
 # Visual Studio Code directory
 .vscode/
+.vs/
 
 # Python 
 .venv/
 
 # Build directory
 build/
+build-win/
 out/
 
 # vcpkg directory
