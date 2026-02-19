@@ -14,6 +14,9 @@ add_executable(bmo_backend ${SOURCES})
 find_package(llama CONFIG REQUIRED)
 target_link_libraries(bmo_backend PRIVATE llama)
 
+find_package(whisper CONFIG REQUIRED)
+target_link_libraries(bmo_backend PRIVATE whisper)
+
 if (WIN32)
   target_link_libraries(bmo_backend PRIVATE ws2_32)
   add_custom_command(TARGET bmo_backend POST_BUILD

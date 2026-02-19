@@ -43,7 +43,7 @@ VCPKG_INSTALLED := $(BUILD_DIR)/vcpkg_installed/$(VCPKG_TRIPLET)
 VCPKG_LIBDIR := $(VCPKG_INSTALLED)/lib
 VCPKG_COMMIT ?= ce35b1a53aac26d7fcdb8ee1ef7a8e4eea02d27b
 
-.PHONY: setup py-setup rebuild configure build clean clean-all run vcpkg builddir \
+.PHONY: setup py-setup rebuild configure build clean clean-all run vcpkg builddir vcpkg-install vcpkg-upgrade \
 		py-venv py-deps py-clean docker-build-pi docker-build-amd64 docker-build docker-run wake-run
 
 setup:
@@ -51,7 +51,7 @@ ifeq ($(OS),Windows_NT)
 	@cmake -S . -B build-win -G "Ninja" -DCMAKE_TOOLCHAIN_FILE=$(TOOLCHAIN_FILE) -DVCPKG_TARGET_TRIPLET=x64-windows
 	@cmake --build build-win --config Release
 else
-	# your linux flow
+	vcpkg configure build
 endif
 
 py-setup: setup py-deps
@@ -74,6 +74,20 @@ else
 	@if [ ! -d "$(VCPKG_DIR)" ]; then git clone https://github.com/microsoft/vcpkg.git "$(VCPKG_DIR)"; fi
 	@if [ -n "$(VCPKG_COMMIT)" ]; then cd "$(VCPKG_DIR)" && git fetch --all --tags && git checkout "$(VCPKG_COMMIT)"; fi
 	@cd $(VCPKG_DIR) && ./bootstrap-vcpkg.sh
+endif
+
+vcpkg-install: vcpkg
+ifeq ($(OS),Windows_NT)
+	@powershell -NoProfile -Command "& '$(VCPKG_DIR)\vcpkg.exe' install --triplet '$(VCPKG_TRIPLET)'"
+else
+	@$(VCPKG_DIR)/vcpkg install --triplet "$(VCPKG_TRIPLET)"
+endif
+
+vcpkg-upgrade: vcpkg
+ifeq ($(OS),Windows_NT)
+	@powershell -NoProfile -Command "& '$(VCPKG_DIR)\vcpkg.exe' upgrade --no-dry-run"
+else
+	@$(VCPKG_DIR)/vcpkg upgrade --no-dry-run
 endif
 
 configure: builddir
