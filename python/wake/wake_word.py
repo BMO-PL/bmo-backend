@@ -2,6 +2,7 @@
 import json
 import socket
 import time
+import errno
 from pathlib import Path
 
 import numpy as np
@@ -18,7 +19,7 @@ FRAME_SAMPLES = int(SAMPLE_RATE * FRAME_MS / 1000)
 
 VAD_FRAME = 512
 
-THRESH = 0.65 # Higher is more precise, too high might not recognize
+THRESH = 0.73 # Higher is more precise, too high might not recognize
 COOLDOWN_S = .9
 
 def find_model_files():
@@ -113,9 +114,11 @@ def main():
             }
             try:
                 sock.sendto(json.dumps(payload).encode("utf-8"), dest)
-            except OSError:
-                # backend not up yet
-                pass
+            except OSError as e:
+                if getattr(e, "winerror", None) in (10054, 10061, 10065):
+                    return
+                if e.errno in (errno.ECONNREFUSED, errno.ENETUNREACH, errno.EHOSTUNREACH):
+                    return
 
     audio_buf = np.zeros((0,), dtype=np.int16)
 
@@ -126,7 +129,7 @@ def main():
 
         pcm = indata[:, 0].astype(np.float32, copy=False)
         rms = float(np.sqrt(np.mean(pcm * pcm)))
-        if rms < 0.002:
+        if rms < 0.0015:
             pcm16 = np.zeros((frames,), dtype=np.int16)
         else:
             pcm16 = np.clip(pcm * 32767.0, -32768, 32767).astype(np.int16, copy=False)
