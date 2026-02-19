@@ -7,7 +7,6 @@
 
 # Build directory
 build/
-build-win/
 out/
 
 # vcpkg directory
