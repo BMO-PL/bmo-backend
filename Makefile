@@ -8,7 +8,7 @@ PY_REQ := python/requirements.txt
 CMAKE_GEN ?= Ninja
 
 ifeq ($(OS),Windows_NT)
-  BUILD_DIR := build-win
+  BUILD_DIR := build
   VCPKG_TRIPLET ?= x64-windows
 
   PY := $(VENV_DIR)/Scripts/python.exe
@@ -46,13 +46,7 @@ VCPKG_COMMIT ?= ce35b1a53aac26d7fcdb8ee1ef7a8e4eea02d27b
 .PHONY: setup py-setup rebuild configure build clean clean-all run vcpkg builddir vcpkg-install vcpkg-upgrade \
 		py-venv py-deps py-clean docker-build-pi docker-build-amd64 docker-build docker-run wake-run
 
-setup:
-ifeq ($(OS),Windows_NT)
-	@cmake -S . -B build-win -G "Ninja" -DCMAKE_TOOLCHAIN_FILE=$(TOOLCHAIN_FILE) -DVCPKG_TARGET_TRIPLET=x64-windows
-	@cmake --build build-win --config Release
-else
-	vcpkg configure build
-endif
+setup: vcpkg configure build
 
 py-setup: setup py-deps
 
@@ -76,11 +70,14 @@ else
 	@cd $(VCPKG_DIR) && ./bootstrap-vcpkg.sh
 endif
 
-vcpkg-install: vcpkg
+vcpkg-install: vcpkg builddir
 ifeq ($(OS),Windows_NT)
-	@powershell -NoProfile -Command "& '$(VCPKG_DIR)\vcpkg.exe' install --triplet '$(VCPKG_TRIPLET)'"
+	@powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+		"$vcpkg = (Resolve-Path '$(VCPKG_DIR)\vcpkg.exe').Path; " ^
+		"$root  = (Resolve-Path '$(BUILD_DIR)').Path + '\vcpkg_installed'; " ^
+		"& $vcpkg install --triplet '$(VCPKG_TRIPLET)' --x-install-root=$root"
 else
-	@$(VCPKG_DIR)/vcpkg install --triplet "$(VCPKG_TRIPLET)"
+	@$(VCPKG_DIR)/vcpkg install --triplet "$(VCPKG_TRIPLET)" --x-install-root="$(BUILD_DIR)/vcpkg_installed"
 endif
 
 vcpkg-upgrade: vcpkg
@@ -92,9 +89,15 @@ endif
 
 configure: builddir
 ifeq ($(OS),Windows_NT)
-	@printf "\nProject must be built on Visual Studio on Windows"
+	@printf "\nConfiguring (Windows / VS)...\n\n"
+	@cmake -S . -B $(BUILD_DIR) \
+		-G "Visual Studio 17 2022" \
+		-A x64 \
+		-DCMAKE_TOOLCHAIN_FILE=../$(TOOLCHAIN_FILE) \
+		-DVCPKG_TARGET_TRIPLET=$(VCPKG_TRIPLET)
 else
 	@printf "\nConfiguring project...\n\n"
+
 	@cd $(BUILD_DIR) && $(CMAKE) .. \
 		-G "$(CMAKE_GEN)" \
 		-DCMAKE_TOOLCHAIN_FILE=../$(TOOLCHAIN_FILE) \
@@ -104,7 +107,8 @@ endif
 
 build: builddir
 ifeq ($(OS),Windows_NT)
-	@printf "\nProject must be built on Visual Studio on Windows"
+	@printf "\nBuilding (Windows / VS)...\n\n"
+	@cmake --build $(BUILD_DIR) --config Release -- /m
 else
 	@printf "\nBuilding project...\n\n"
 	@$(CMAKE) --build $(BUILD_DIR) -- -j$(CORES)
@@ -112,7 +116,7 @@ endif
 
 run:
 ifeq ($(OS),Windows_NT)
-	@powershell -NoProfile -Command "& '.\build-win\bmo_backend.exe'"
+	@powershell -NoProfile -Command "& '.\build\Release\bmo_backend.exe'"
 else
 	@./$(BUILD_DIR)/bmo_backend
 endif

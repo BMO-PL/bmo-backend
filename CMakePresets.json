@@ -1,11 +1,11 @@
 {
-  "version": 3,
+  "version": 6,
   "configurePresets": [
     {
-      "name": "windows-msvc-release",
-      "displayName": "Windows MSVC Release (vcpkg)",
+      "name": "win-x64",
       "generator": "Visual Studio 17 2022",
-      "binaryDir": "${sourceDir}/build-win",
+      "binaryDir": "${sourceDir}/build",
+      "architecture": "x64",
       "cacheVariables": {
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_TARGET_TRIPLET": "x64-windows"
@@ -14,8 +14,14 @@
   ],
   "buildPresets": [
     {
-      "name": "windows-msvc-release",
-      "configurePreset": "windows-msvc-release"
+      "name": "win-debug",
+      "configurePreset": "win-x64",
+      "configuration": "Debug"
+    },
+    {
+      "name": "win-release",
+      "configurePreset": "win-x64",
+      "configuration": "Release"
     }
   ]
 }
