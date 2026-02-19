@@ -13,13 +13,13 @@ import openwakeword
 HOST, PORT = "127.0.0.1", 3939
 
 SAMPLE_RATE = 16000
-FRAME_MS = 80
+FRAME_MS = 50
 FRAME_SAMPLES = int(SAMPLE_RATE * FRAME_MS / 1000)
 
-THRESH = 0.60 # Higher is more precise, too high might not recognize
-COOLDOWN_S = 0.9
+VAD_FRAME = 512
 
-INPUT_DEVICE = 0
+THRESH = 0.65 # Higher is more precise, too high might not recognize
+COOLDOWN_S = .9
 
 def find_model_files():
     pkg_dir = Path(openwakeword.__file__).resolve().parent
@@ -27,15 +27,23 @@ def find_model_files():
     candidates = [
         pkg_dir / "resources" / "models",
         pkg_dir / "models",
+        Path.cwd() / "python" / "wake" / "models",
     ]
 
+    exclude_prefixes = ("embedding_model", "melspectrogram", "silero_vad")
+
     for d in candidates:
-        if d.is_dir():
-            onnx = sorted(d.glob("*.onnx"))
-            tflite = sorted(d.glob("*.tflite"))
-            files = onnx + tflite
-            if files:
-                return files
+        if not d.is_dir():
+            continue
+
+        models = []
+        for p in sorted(d.glob("*.onnx")):
+            if p.stem.startswith(exclude_prefixes):
+                continue
+            models.append(p)
+
+        if models:
+            return models
 
     return []
 
@@ -58,6 +66,8 @@ def pick_input_device():
 
 def main():
 
+    openwakeword.utils.download_models()
+
     model_files = find_model_files()
     if not model_files:
         raise SystemExit(
@@ -74,8 +84,8 @@ def main():
     if dev_idx is None:
         raise SystemExit(
             "No input audio devices found (PortAudio sees none).\n"
-            "If you're in Docker: run with --device /dev/snd --group-add audio.\n"
-            "On host: check /dev/snd exists and your user is in the audio group."
+            "Docker: run with --device /dev/snd --group-add audio.\n"
+            "Host: check /dev/snd exists and your user is in the audio group."
         )
 
     print(f"Using input device #{dev_idx}: {dev_info['name']} "
@@ -84,10 +94,13 @@ def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     dest = (HOST, PORT)
 
-    m = Model(wakeword_model_paths=[str(p) for p in model_files])
-
-    print("Loaded models:", ", ".join(m.models.keys()))
-    print("openWakeWord: listening...")
+    m = Model(
+        wakeword_models=[str(p) for p in model_files],
+        inference_framework="onnx",
+        vad_threshold=0.0,
+    )
+    model_names = list(m.models.keys())
+    print("Loaded models:", ", ".join(model_names))
 
     last = 0.0
 
@@ -101,39 +114,57 @@ def main():
             try:
                 sock.sendto(json.dumps(payload).encode("utf-8"), dest)
             except OSError:
-                # backend not up yet, etc.
+                # backend not up yet
                 pass
 
+    audio_buf = np.zeros((0,), dtype=np.int16)
+
     def callback(indata, frames, time_info, status):
-        nonlocal last
+        nonlocal last, audio_buf
         if status:
             return
 
-        now = time.time()
-        if now - last < COOLDOWN_S:
-            return
+        pcm = indata[:, 0].astype(np.float32, copy=False)
+        rms = float(np.sqrt(np.mean(pcm * pcm)))
+        if rms < 0.002:
+            pcm16 = np.zeros((frames,), dtype=np.int16)
+        else:
+            pcm16 = np.clip(pcm * 32767.0, -32768, 32767).astype(np.int16, copy=False)
 
-        pcm = indata[:, 0]
-        pcm16 = np.clip(pcm * 32768.0, -32768, 32767).astype(np.int16, copy=False)
+        audio_buf = np.concatenate([audio_buf, pcm16])
 
-        preds = m.predict(pcm16)
+        while audio_buf.size >= VAD_FRAME:
+            frame = audio_buf[:VAD_FRAME]
+            audio_buf = audio_buf[VAD_FRAME:]
 
-        best_name, best_score = None, 0.0
-        for name, score in preds.items():
-            s = float(score)
-            if s > best_score:
-                best_name, best_score = name, s
+            now = time.time()
+            preds = m.predict(frame)
 
-        if best_name and best_score >= THRESH:
-            print(f"WAKE {best_name} {best_score:.3f}")
-            notify(best_name, best_score)
-            last = now
+            if not isinstance(preds, dict):
+                return
+            
+            best_name, best_score = None, 0.0
+            for name in model_names:
+                s = float(preds.get(name, 0.0))
+                if s > best_score:
+                    best_name, best_score = name, s
 
-    print("Using input device:", INPUT_DEVICE, sd.query_devices(INPUT_DEVICE)["name"])
-    
+            if (now - last) >= COOLDOWN_S and best_name and best_score >= THRESH:
+                print(f"WAKE {best_name} {best_score:.3f}")
+                notify(best_name, best_score)
+                last = now
+
+                if hasattr(m, "reset"):
+                    m.reset()
+
+                audio_buf = np.zeros((0,), dtype=np.int16)
+                break
+
+
+
     print(f"openWakeWord: listening… UDP -> {HOST}:{PORT}")
     with sd.InputStream(
-        device=INPUT_DEVICE,
+        device=dev_idx,
         channels=1,
         samplerate=SAMPLE_RATE,
         dtype="float32",

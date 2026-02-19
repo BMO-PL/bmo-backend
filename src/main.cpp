@@ -2,8 +2,10 @@
 
 #include <iostream>
 
-int main(int argc, char** argv) {
+int main() {
 
+    std::cerr << "Initializing WakeListener...\n";
+    std::cerr.flush();
     WakeListener wake("127.0.0.1", 3939, [&](const std::string& msg) {
         std::cout << "[wake] " << msg << std::endl;
 
@@ -11,8 +13,8 @@ int main(int argc, char** argv) {
     wake.start();
 
     std::string text;
-    std::cout << "\nMain running: ";
-    std::cin >> text;
+    std::cout << "\nMain running (press Enter to quit): ";
+    std::getline(std::cin, text);
 
     wake.stop();
     return 0;

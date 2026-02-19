@@ -6,6 +6,15 @@
 #include <thread>
 #include <atomic>
 
+#ifdef _WIN32
+  #include <winsock2.h>
+  using socket_t = SOCKET;
+  static constexpr socket_t kInvalidSocket = INVALID_SOCKET;
+#else
+  using socket_t = int;
+  static constexpr socket_t kInvalidSocket = -1;
+#endif
+
 class WakeListener {
 public:
     using CallBack = std::function<void(const std::string& payload)>;    
@@ -25,7 +34,7 @@ private:
 
     std::thread thread_;
     std::atomic<bool> running_{false};
-    int sock_{-1};
+    socket_t sock_{kInvalidSocket};
 };
 
 #endif
