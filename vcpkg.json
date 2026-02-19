@@ -2,6 +2,7 @@
   "name": "bmo-backend",
   "version": "0.0.5",
   "dependencies": [
-    "llama-cpp"
+    "llama-cpp",
+    "whisper-cpp"
   ]
 }
