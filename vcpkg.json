@@ -2,8 +2,6 @@
   "name": "bmo-backend",
   "version": "0.0.1",
   "dependencies": [
-    { "name": "llama-cpp", "features": [ "tools", "download" ] },
-    "whisper-cpp",
-    "portaudio"
+    "llama-cpp"
   ]
 }

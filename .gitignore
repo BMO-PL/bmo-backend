@@ -1,6 +1,9 @@
 # Visual Studio Code directory
 .vscode/
 
+# Python 
+.venv/
+
 # Build directory
 build/
 out/
@@ -9,12 +12,5 @@ out/
 vcpkg/
 vcpkg_installed/
 
-# Cmake artifacts
-**/CMakeFiles/
-/CMakeCache.txt
-cmake_install.cmake
-install_manifest.txt
-CTestTestfile.cmake
-compile_commands.json
-
+# Local dev utils
 local/
