@@ -1,0 +1,82 @@
+# syntax=docker/dockerfile:1.6
+FROM --platform=$BUILDPLATFORM ubuntu:24.04 AS builder
+
+ARG TARGETPLATFORM
+ARG VCPKG_COMMIT=master
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake ninja-build git curl zip unzip tar pkg-config ca-certificates \
+    python3 python3-venv python3-pip \
+    portaudio19-dev libsndfile1 \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+RUN git clone https://github.com/microsoft/vcpkg.git \
+ && cd vcpkg \
+ && git checkout ${VCPKG_COMMIT} \
+ && ./bootstrap-vcpkg.sh
+
+ENV VCPKG_ROOT=/opt/vcpkg
+ENV PATH="${VCPKG_ROOT}:${PATH}"
+
+ENV VCPKG_FEATURE_FLAGS=manifests
+
+WORKDIR /src
+COPY . .
+
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+RUN pip install -U pip wheel setuptools \
+ && if [ -f python/requirements.txt ]; then pip install -r python/requirements.txt; fi
+
+
+RUN case "${TARGETPLATFORM}" in \
+      "linux/arm64")  echo "arm64-linux-dynamic" > /tmp/triplet ;; \
+      "linux/amd64")  echo "x64-linux-dynamic"   > /tmp/triplet ;; \
+      *) echo "Unsupported TARGETPLATFORM=${TARGETPLATFORM}" && exit 1 ;; \
+    esac
+
+RUN cmake -S . -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake \
+    -DVCPKG_TARGET_TRIPLET=$(cat /tmp/triplet) \
+ && cmake --build build
+
+FROM ubuntu:24.04 AS runtime
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tini \
+    ca-certificates \
+    python3 \
+    libportaudio2 libsndfile1 \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /src/build/bmo_backend /app/bmo_backend
+
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+COPY --from=builder /src/python /app/python
+
+COPY --from=builder /src/build/vcpkg_installed/ /app/vcpkg_installed/
+RUN set -e; \
+    triplet_dir="$(ls /app/vcpkg_installed | head -n1)"; \
+    mkdir -p /app/lib; \
+    cp -av "/app/vcpkg_installed/${triplet_dir}/lib/"*.so* /app/lib/ 2>/dev/null || true
+
+RUN set -e; \
+    triplet_dir="$(ls /app/vcpkg_installed | head -n1)"; \
+    if [ -f "/app/vcpkg_installed/${triplet_dir}/tools/llama-cpp/llama-cli" ]; then \
+      mkdir -p /app/tools; \
+      cp -av "/app/vcpkg_installed/${triplet_dir}/tools/llama-cpp/llama-cli" /app/tools/; \
+    fi
+
+COPY --from=builder /src/scripts/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+ENV LD_LIBRARY_PATH="/app/lib:${LD_LIBRARY_PATH}"
+
+EXPOSE 8080
+
+ENTRYPOINT ["/usr/bin/tini","--","/app/entrypoint.sh"]
