@@ -12,10 +12,20 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
 add_executable(bmo_backend ${SOURCES})
 
 find_package(llama CONFIG REQUIRED)
-target_link_libraries(bmo_backend PRIVATE llama)
-
 find_package(whisper CONFIG REQUIRED)
-target_link_libraries(bmo_backend PRIVATE whisper)
+find_package(portaudio CONFIG REQUIRED)
+
+target_link_libraries(bmo_backend PRIVATE llama whisper)
+
+if (TARGET PortAudio::PortAudio)
+  target_link_libraries(bmo_backend PRIVATE PortAudio::PortAudio)
+elseif (TARGET portaudio)
+  target_link_libraries(bmo_backend PRIVATE portaudio)
+else()
+  message(FATAL_ERROR "PortAudio target not found (expected PortAudio::PortAudio or portaudio).")
+endif()
+
+
 
 if (WIN32)
   target_link_libraries(bmo_backend PRIVATE ws2_32)

@@ -72,12 +72,9 @@ endif
 
 vcpkg-install: vcpkg builddir
 ifeq ($(OS),Windows_NT)
-	@powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-		"$vcpkg = (Resolve-Path '$(VCPKG_DIR)\vcpkg.exe').Path; " ^
-		"$root  = (Resolve-Path '$(BUILD_DIR)').Path + '\vcpkg_installed'; " ^
-		"& $vcpkg install --triplet '$(VCPKG_TRIPLET)' --x-install-root=$root"
+	@powershell -NoProfile -ExecutionPolicy Bypass -Command "& '$(VCPKG_DIR)\vcpkg.exe' install --triplet '$(VCPKG_TRIPLET)' --x-install-root (Join-Path (Resolve-Path '$(BUILD_DIR)').Path 'vcpkg_installed')"
 else
-	@$(VCPKG_DIR)/vcpkg install --triplet "$(VCPKG_TRIPLET)" --x-install-root="$(BUILD_DIR)/vcpkg_installed"
+	@$(VCPKG_DIR)/vcpkg install --triplet "$(VCPKG_TRIPLET)" --x-install-root "$(BUILD_DIR)/vcpkg_installed"
 endif
 
 vcpkg-upgrade: vcpkg
