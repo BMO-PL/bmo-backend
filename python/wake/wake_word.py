@@ -22,6 +22,8 @@ VAD_FRAME = 512
 THRESH = 0.73 # Higher is more precise, too high might not recognize
 COOLDOWN_S = .9
 
+HANDOFF_S = 12.5
+
 def find_model_files():
     pkg_dir = Path(openwakeword.__file__).resolve().parent
 
@@ -157,6 +159,8 @@ def main():
                 notify(best_name, best_score)
                 last = now
 
+                raise sd.CallbackStop()
+
                 if hasattr(m, "reset"):
                     m.reset()
 
@@ -175,8 +179,14 @@ def main():
         callback=callback,
     ):
         while True:
-            time.sleep(1)
-
+            try:
+                with sd.InputStream(...):
+                    while True:
+                        time.sleep(1)
+            except sd.CallbackStop:
+                time.sleep(HANDOFF_S)
+                continue
+        
 
 if __name__ == "__main__":
     main()

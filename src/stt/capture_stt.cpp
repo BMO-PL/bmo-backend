@@ -11,7 +11,7 @@ static void pa_check(PaError e, const char* msg) {
     }
 }
 
-int run_live_stt(const std::string& modelPath) {
+int run_live_stt(WhisperSTT& stt) {
     pa_check(Pa_Initialize(), "Pa_Initialize");
 
     UtteranceRecorder::Config config;
@@ -42,8 +42,6 @@ int run_live_stt(const std::string& modelPath) {
 
     pa_check(Pa_StartStream(stream), "Pa_StartStream");
 
-    WhisperSTT stt(modelPath);
-
     std::cout << "Listening... (speak, then pause)\n";
 
     std::vector<int16_t> buff(config.framesPerBuffer);
@@ -68,9 +66,13 @@ int run_live_stt(const std::string& modelPath) {
             // TODO: Pass text onto llm
             
             recorder.reset();
-            std::cout << "Listening...\n"; 
+            break;
         }
     }
+
+    Pa_StopStream(stream);
+    Pa_CloseStream(stream);
+    Pa_Terminate();
 
     return 0;
 }
