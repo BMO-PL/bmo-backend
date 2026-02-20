@@ -13,12 +13,13 @@ int main() {
         bool expected = false;
 
         if (!stt.session_active_.compare_exchange_strong(expected, true)) {
-            std::cout << "[Wake Handler] [WARN] Callback triggered with STT session still active. Backend may not own mic in current conversation." << std::endl;
+            std::cout << "[Wake Handler] [WARN] Callback triggered with STT session still active. Backend may not own audio input in current conversation." << std::endl;
             return;
         }
 
         std::thread([&]{
             try {
+                // TODO: add STT -> LLM loop until notifying wake_word.py to take audio input back
                 run_live_stt(stt);
             } catch (const std::exception& e) {
                 std::cerr << "[Whisper STT] [ERROR] " << e.what() << std::endl;
