@@ -17,7 +17,7 @@ public:
 
     std::string transcribe(const std::vector<float>& pcm16kMono, int threads = 4);
 
-    std::atomic<bool> is_busy_{false};
+    std::atomic<bool> session_active_{false};
 
 private:
     whisper_context* context_ = nullptr;

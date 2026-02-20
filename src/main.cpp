@@ -7,21 +7,24 @@ int main() {
     // STT model init
     WhisperSTT stt("models/whisper/ggml-base.en-q5_1.bin");
 
-    // WakeListener init
-    WakeListener wake("127.0.0.1", 3939, [&](const std::string& msg) {
-        std::cout << "[wake] " << msg << std::endl;
+    // WakeHandler init
+    WakeHandler wake("127.0.0.1", 3939,
+        [&](const std::string& msg, const std::string& senderIP, uint16_t senderPort) {
+        bool expected = false;
 
-        if (stt.is_busy_.exchange(true)) return;
+        if (!stt.session_active_.compare_exchange_strong(expected, true)) {
+            std::cout << "[Wake Handler] [WARN] Callback triggered with STT session still active. Backend may not own mic in current conversation." << std::endl;
+            return;
+        }
 
         std::thread([&]{
             try {
                 run_live_stt(stt);
             } catch (const std::exception& e) {
-                std::cerr << "\nSTT error: " << e.what() << "\n";
+                std::cerr << "[Whisper STT] [ERROR] " << e.what() << std::endl;
             }
-            stt.is_busy_ = false;
+            stt.session_active_.store(false);
         }).detach();
-
     });
 
     wake.start();
