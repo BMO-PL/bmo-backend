@@ -19,8 +19,10 @@ int main() {
 
         std::thread([&]{
             try {
-                // TODO: add STT -> LLM loop until notifying wake_word.py to take audio input back
+                // TODO: add listening -> STT -> LLM -> listening loop until conversation ends, notifying wake_word.py to take audio input back
                 run_live_stt(stt);
+
+
             } catch (const std::exception& e) {
                 std::cerr << "[Whisper STT] [ERROR] " << e.what() << std::endl;
             }
